@@ -1,0 +1,194 @@
+PARMESANO — USER GUIDE
+======================
+
+Parmesano is a toolkit for generating academic search queries from any codebase
+and fetching papers from Google Scholar via SerpAPI. It ships with two OpenCode
+skills that automate the full literature review pipeline.
+
+
+TL;DR PIPELINE
+--------------
+
+  Codebase -> [queries-generator] -> queries.txt -> [parmesano] -> results/
+                                                                      |- index.html
+                                                                      |- data.json
+                                                                      |- data.csv
+
+In OpenCode, just say: "Generate queries from this codebase and search them on
+Google Scholar." Both skills fire automatically.
+
+
+STEP 1: SETUP (one-time)
+-------------------------
+
+  1. Clone the repo:
+
+     git clone https://github.com/AlanAmaro13/Parmesano.git
+     cd Parmesano
+
+  2. Install dependencies:
+
+     pip install -r requirements.txt
+
+  3. Add your SerpAPI key:
+
+     cp .env.example .env
+     # Edit .env and paste your key from https://serpapi.com/manage-api-key
+     SERPAPI_KEY=your_real_key_here
+
+  4. Restart OpenCode to load the skills.
+
+
+STEP 2: GENERATE QUERIES FROM A CODEBASE
+-----------------------------------------
+
+  Open any project in OpenCode and say:
+
+    "Generate queries from this codebase"
+
+  The queries-generator skill will:
+
+    a. Scan README, configs, source imports, model definitions, training loops
+    b. Extract every concrete technique used (Dropout, BatchNorm, Adam, Conv2d,
+       Transformer, Data Augmentation, etc.)
+    c. Expand each technique into its academic neighborhood — foundational
+       papers, variants, alternatives, and theory
+    d. Generate 100 combined 2-4 term queries bridging implementation to research
+    e. Write them to queries.txt
+
+  Example output (queries.txt):
+
+    Dropout Regularization Stochastic Depth Overfitting Prevention
+    Batch Normalization Internal Covariate Shift Training Stability
+    Transformer Architecture Multi-Head Attention Positional Encoding
+    Adam Optimizer Adaptive Learning Rates Weight Decay Regularization
+    ... (96 more)
+
+
+STEP 3: SEARCH GOOGLE SCHOLAR
+------------------------------
+
+  Command line:
+
+    python -m parmesano search -i queries.txt -o results/ --visualize --max-results 20
+
+  Flags:
+
+    -i, --input      File with one query per line (required)
+    -o, --output      Output JSON path, or base directory with --visualize
+    --max-results     Papers per query (default 10, max 20 per API call)
+    --year-from       Filter papers published after this year
+    --year-to         Filter papers published before this year
+    --sort            relevance (default) or date
+    --visualize       Generate interactive HTML report + CSV
+
+
+STEP 4: VIEW RESULTS
+---------------------
+
+  Open the generated index.html in any browser:
+
+    results/2026-06-15_16-30-00/
+    ├── index.html       <-- Double-click to open
+    ├── data.json
+    └── data.csv
+
+  Visualizer features:
+    - Left panel: query list with paper counts (click to switch)
+    - Right panel: paper cards sorted by citations
+    - Search/filter: type to find papers across all fields
+    - Sort: citations (default), title A-Z, or position
+    - Citation badges: red (>1000), orange (>100), grey (≤100)
+    - PDF/resource links as clickable chips
+    - Dark theme, mobile-friendly
+
+
+VISUALIZING EXISTING RESULTS
+-----------------------------
+
+  If you already have a results.json:
+
+    python -m parmesano visualize results.json -o results/
+
+
+QUERY TIPS
+-----------
+
+  Combined search (intersection of all terms on one line):
+
+    Deep Learning Data Augmentation 3D Fossil Reconstruction
+    # Returns papers matching all three topics
+
+  Batch search (independent searches, one per line):
+
+    Artificial Intelligence
+    X Ray Diffraction
+    CRISPR Gene Editing
+    # Returns three separate result sets in one output
+
+  Don't wrap terms in quotes unless you need exact phrase matching.
+  Overly strict queries often return zero results on Scholar.
+
+
+API COST
+---------
+
+  --max-results 20  ->  1 API call per query (sweet spot)
+  --max-results 100 ->  5 API calls per query (paginated)
+
+  Example: 100 queries x 20 results = 100 API calls in total.
+  Cached searches are free and not counted toward your quota.
+
+
+WORKFLOW WITHOUT OPENCODE
+--------------------------
+
+  You can use Parmesano entirely from the command line without OpenCode.
+  Write your own queries.txt manually:
+
+    echo 'Batch Normalization Internal Covariate Shift Training Stability' > queries.txt
+    echo 'Dropout Regularization Stochastic Depth Overfitting Prevention' >> queries.txt
+    echo 'Transformer Architecture Self-Attention Positional Encoding' >> queries.txt
+
+    python -m parmesano search -i queries.txt -o results/ --visualize --max-results 20
+
+
+FILE STRUCTURE
+---------------
+
+  Parmesano/
+  ├── parmesano/
+  │   ├── __main__.py          # CLI (search + visualize subcommands)
+  │   ├── scholar.py           # SerpAPI Scholar client + pagination
+  │   ├── output.py            # JSON/CSV/HTML output + folder generation
+  │   └── viz.py               # HTML visualizer template + CSV builder
+  ├── .opencode/skills/
+  │   ├── parmesano/SKILL.md           # Search execution skill
+  │   └── queries-generator/SKILL.md   # Codebase-to-queries skill
+  ├── SKILL.md
+  ├── SKILL-queries-generator.md
+  ├── requirements.txt
+  ├── .env.example
+  └── README.md
+
+
+TROUBLESHOOTING
+----------------
+
+  "SERPAPI_KEY not set"
+    -> Create .env from .env.example and add your key.
+
+  "Google hasn't returned any results for this query"
+    -> Your query is too strict. Drop quotes, use fewer terms, or broaden.
+
+  "Invalid API key"
+    -> Check https://serpapi.com/manage-api-key. Free tier may be exhausted.
+
+  queries.txt has no queries
+    -> The input file is empty or has only blank lines.
+
+  Visualizer shows blank page
+    -> Must be opened in a browser, not a terminal. Use:
+       open results/*/index.html        (macOS)
+       xdg-open results/*/index.html    (Linux)
+       start results/*/index.html       (Windows)
