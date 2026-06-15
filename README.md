@@ -10,7 +10,7 @@ Batch search Google Scholar via SerpAPI. Give it a list of topics, get back stru
 - Year range filtering and relevance/date sorting
 - JSON output ready for downstream processing
 - Error resilience: failed queries don't block the rest
-- OpenCode skill integration
+- OpenCode skill integration (two skills, one pipeline)
 
 ## Prerequisites
 
@@ -146,9 +146,46 @@ python -m parmesano -i queries.txt -o results.json --year-from 2018 --year-to 20
 
 Pagination is automatic. Each set of 20 results costs one API call.
 
-## OpenCode Skill
+## OpenCode Skills
 
-Parmesano ships with an OpenCode skill at `.opencode/skills/parmesano/SKILL.md`. It tells OpenCode how and when to run scholar searches on your behalf. Restart opencode to load it.
+Parmesano ships with two OpenCode skills that chain together into a full
+literature review pipeline.
+
+### Full Pipeline
+
+```
+Codebase → [queries-generator] → queries.txt → [parmesano] → results.json
+```
+
+In OpenCode, just say:
+
+> *"Generate queries from this codebase and search them on Google Scholar"*
+
+### `parmesano` Skill
+
+Located at `.opencode/skills/parmesano/SKILL.md`. Runs the Parmesano CLI to
+search Google Scholar. Handles batch queries, combined searches, pagination,
+year filters, and JSON output.
+
+### `queries-generator` Skill
+
+Located at `.opencode/skills/queries-generator/SKILL.md`. Analyzes a codebase
+through two reasoning layers:
+
+**Layer 1 — Technical Extraction:** reads source code, model definitions,
+training loops, and configs to identify every concrete technique actually
+used (Dropout, BatchNorm, Adam, Transformers, Data Augmentation, etc.).
+
+**Layer 2 — Scientific Expansion:** maps each technique to its academic
+neighborhood — foundational papers, variants, alternatives, and theoretical 
+underpinnings. Then generates 100 combined 2-4 term queries bridging
+implementation to research.
+
+Example: `nn.BatchNorm2d()` in code becomes queries like *"Batch Normalization
+Internal Covariate Shift Training Stability"*, *"Layer Normalization Instance
+Normalization Group Normalization"*, etc.
+
+Restart opencode after cloning to load both skills.
 
 ## Project Structure
 
@@ -160,13 +197,15 @@ Parmesano/
 │   ├── scholar.py           # SerpAPI Scholar client + pagination
 │   └── output.py            # JSON formatter
 ├── .opencode/skills/parmesano/
-│   └── SKILL.md             # OpenCode skill definition
-├── SKILL.md                 # Root copy (for portability)
+│   └── SKILL.md             # Search execution skill
+├── .opencode/skills/queries-generator/
+│   └── SKILL.md             # Codebase-to-queries skill
+├── SKILL.md                 # Root copy of parmesano skill
+├── SKILL-queries-generator.md # Root copy of queries-generator skill
 ├── requirements.txt         # google-search-results, python-dotenv
 ├── .env.example             # SERPAPI_KEY template
 ├── queries.example.txt      # Sample query file
 ├── example.sh               # End-to-end usage script
-├── example/                 # SerpAPI documentation
 └── README.md
 ```
 
