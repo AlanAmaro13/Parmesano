@@ -8,6 +8,8 @@ Batch search Google Scholar via SerpAPI. Give it a list of topics, get back stru
 - Combined multi-topic searches (intersection of terms on one line)
 - Configurable result count with automatic pagination
 - Year range filtering and relevance/date sorting
+- Dark-theme HTML visualizer with search, sort, and filter
+- CSV export for Excel/LibreOffice
 - JSON output ready for downstream processing
 - Error resilience: failed queries don't block the rest
 - OpenCode skill integration (two skills, one pipeline)
@@ -31,7 +33,7 @@ cp .env.example .env
 
 ```bash
 echo 'Deep Learning Data Augmentation 3D Fossil Reconstruction' > queries.txt
-python -m parmesano -i queries.txt -o results.json --max-results 20
+python -m parmesano search -i queries.txt -o results.json --max-results 20
 ```
 
 ## Query Strategies
@@ -56,33 +58,52 @@ Avoid wrapping terms in double quotes unless you need exact phrase matching. Ove
 
 ## CLI Reference
 
+Parmesano has two subcommands:
+
+### `search` — Run searches
+
 ```
-python -m parmesano -i <file> -o <file> [options]
+python -m parmesano search -i <file> -o <file> [options]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-i`, `--input` | *(required)* | File with one query per line |
-| `-o`, `--output` | *(required)* | Output JSON path |
+| `-o`, `--output` | *(required)* | Output JSON path, or base directory with `--visualize` |
 | `--max-results` | `10` | Max results per query (1–20: 1 API call; >20: paginated) |
 | `--year-from` | *(none)* | Exclude results published before this year |
 | `--year-to` | *(none)* | Exclude results published after this year |
 | `--sort` | `relevance` | `relevance` (default, heavily weights citations) or `date` |
+| `--visualize` | `off` | Generate timestamped output folder with HTML, JSON, and CSV |
+
+### `visualize` — From existing JSON
+
+```
+python -m parmesano visualize <results.json> [-o results/]
+```
+
+Generates a timestamped output folder from a previously saved `results.json`.
 
 ### Examples
 
 ```bash
-# Basic search
-python -m parmesano -i queries.txt -o results.json
+# Basic search → single JSON
+python -m parmesano search -i queries.txt -o results.json
+
+# Search + generate visualizer in timestamped folder
+python -m parmesano search -i queries.txt -o results/ --visualize --max-results 20
 
 # Get 50 results per query (3 API calls each: 20 + 20 + 10)
-python -m parmesano -i queries.txt -o results.json --max-results 50
+python -m parmesano search -i queries.txt -o results.json --max-results 50
 
 # Recent papers since 2020, sorted by date
-python -m parmesano -i queries.txt -o results.json --year-from 2020 --sort date
+python -m parmesano search -i queries.txt -o results.json --year-from 2020 --sort date
 
 # Narrow date range
-python -m parmesano -i queries.txt -o results.json --year-from 2018 --year-to 2022
+python -m parmesano search -i queries.txt -o results.json --year-from 2018 --year-to 2022
+
+# Visualize an existing results.json
+python -m parmesano visualize results.json -o results/
 ```
 
 ## Output Format
@@ -136,6 +157,34 @@ python -m parmesano -i queries.txt -o results.json --year-from 2018 --year-to 20
 | `cited_by` | Many | Citation count |
 | `resources` | Some | Links to PDFs or other file formats |
 
+## Visualizer
+
+The `--visualize` flag generates a **self-contained HTML report** in a
+timestamped folder. Open `index.html` in any browser — no server required.
+
+```
+results/2026-06-15_16-30-00/
+├── index.html       # Dark-theme interactive visualizer
+├── data.json        # Full structured results
+└── data.csv         # Flat CSV (Excel/LibreOffice compatible)
+```
+
+### Features
+
+- **Two-panel layout**: query list (left) · paper cards (right)
+- **Citation badges**: hot (>1000) red, warm (>100) orange, cool (≤100) grey
+- **Sort**: by citations (default), title A-Z, or position
+- **Filter**: instant search across titles, authors, snippets
+- **Query sidebar**: click to switch between queries, filter queries by name
+- **Per-paper card**: title (clickable link), authors, publication info, snippet, type badge, resource links (PDF)
+- **Error handling**: failed queries shown with error message
+- **Responsive**: mobile-friendly layout
+- **Zero dependencies**: single self-contained HTML file
+
+### CSV Columns
+
+`query`, `position`, `title`, `authors`, `year`, `cited_by`, `type`, `link`, `publication_summary`, `snippet`
+
 ## API Limits & Cost
 
 | Limit | Value |
@@ -154,7 +203,10 @@ literature review pipeline.
 ### Full Pipeline
 
 ```
-Codebase → [queries-generator] → queries.txt → [parmesano] → results.json
+Codebase → [queries-generator] → queries.txt → [parmesano] → results/
+                                                               ├── index.html
+                                                               ├── data.json
+                                                               └── data.csv
 ```
 
 In OpenCode, just say:
@@ -193,9 +245,10 @@ Restart opencode after cloning to load both skills.
 Parmesano/
 ├── parmesano/
 │   ├── __init__.py          # Version info
-│   ├── __main__.py          # CLI entry point (argparse)
+│   ├── __main__.py          # CLI (search + visualize subcommands)
 │   ├── scholar.py           # SerpAPI Scholar client + pagination
-│   └── output.py            # JSON formatter
+│   ├── output.py            # JSON/CSV/HTML output + folder generation
+│   └── viz.py               # HTML visualizer template + CSV builder
 ├── .opencode/skills/parmesano/
 │   └── SKILL.md             # Search execution skill
 ├── .opencode/skills/queries-generator/
